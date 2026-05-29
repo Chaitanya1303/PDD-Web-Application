@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+// @ts-expect-error - plain JS component per spec
 import Glowtics from "@/components/Glowtics.jsx";
 
 export const Route = createFileRoute("/")({
