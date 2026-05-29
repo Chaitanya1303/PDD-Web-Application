@@ -98,7 +98,7 @@ function AppProvider({ children }) {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch {}
   }, [data]);
 
-  const update = (fn) => setData((d) => fn(structuredClone(d)));
+  const update = (fn) => setData((d) => { const next = structuredClone(d); fn(next); return next; });
 
   const reset = () => { localStorage.removeItem(STORAGE_KEY); setData(emptyData); };
 
