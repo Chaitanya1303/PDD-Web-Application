@@ -402,10 +402,12 @@ function UploadZone({ icon: Icon, title, image, onPick, onClear }) {
     <div style={{ marginBottom: 16 }}>
       <div style={{ ...label, marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span>{title}</span>
-        {image && (
+        {image ? (
           <button onClick={(e) => { e.stopPropagation(); onClear(); }} style={{ fontSize: 11, color: C.coral, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
             <X size={12} /> Clear
           </button>
+        ) : (
+          <span style={{ fontSize: 10, fontWeight: 600, color: C.coral, background: C.coralTint, padding: "2px 6px", borderRadius: 4 }}>Required</span>
         )}
       </div>
 
@@ -433,7 +435,21 @@ function UploadZone({ icon: Icon, title, image, onPick, onClear }) {
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <button className="glow-upload glow-tap" onClick={() => fileInputRef.current?.click()}
-            style={{ width: "100%", height: 140, borderRadius: 16, border: `2px dashed ${C.teal}`, background: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, overflow: "hidden", position: "relative" }}>
+            style={{
+              width: "100%",
+              height: 140,
+              borderRadius: 16,
+              border: image ? `2px dashed ${C.teal}` : `2px dashed rgba(239, 68, 68, 0.3)`,
+              background: image ? "#fff" : "rgba(239, 68, 68, 0.01)",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              overflow: "hidden",
+              position: "relative",
+              transition: "all 0.25s"
+            }}>
             {image ? (
               <img src={image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
             ) : (
@@ -464,42 +480,58 @@ function UploadZone({ icon: Icon, title, image, onPick, onClear }) {
 function QuestionBlock({ qs, answers, setAnswers }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 14 }}>
-      {qs.map((qq, i) => (
-        <div key={i} className="glow-fadeup" style={{ ...card, padding: 14, animationDelay: `${i * 60}ms` }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: C.dark, marginBottom: 10 }}>{qq.q}</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {qq.a.map((opt) => {
-              const isMulti = qq.multiSelect;
-              const currentAns = answers[i];
-              const sel = isMulti 
-                ? Array.isArray(currentAns) && currentAns.includes(opt)
-                : currentAns === opt;
+      {qs.map((qq, i) => {
+        const isAnswered = answers[i] !== null && (!Array.isArray(answers[i]) || answers[i].length > 0);
+        return (
+          <div key={i} className="glow-fadeup"
+            style={{
+              ...card,
+              padding: 14,
+              animationDelay: `${i * 60}ms`,
+              border: isAnswered ? `1px solid ${C.border}` : `1px solid rgba(239, 68, 68, 0.2)`,
+              background: isAnswered ? C.surface : "rgba(239, 68, 68, 0.02)",
+              transition: "all 0.25s"
+            }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: C.dark }}>{qq.q}</div>
+              {!isAnswered && (
+                <span style={{ fontSize: 10, fontWeight: 600, color: C.coral, background: C.coralTint, padding: "2px 6px", borderRadius: 4 }}>Required</span>
+              )}
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {qq.a.map((opt) => {
+                const isMulti = qq.multiSelect;
+                const currentAns = answers[i];
+                const sel = isMulti 
+                  ? Array.isArray(currentAns) && currentAns.includes(opt)
+                  : currentAns === opt;
 
-              const handleClick = () => {
-                const n = [...answers];
-                if (isMulti) {
-                  const arr = Array.isArray(currentAns) ? [...currentAns] : [];
-                  if (arr.includes(opt)) {
-                    const filtered = arr.filter((x) => x !== opt);
-                    n[i] = filtered.length > 0 ? filtered : null;
+                const handleClick = () => {
+                  const n = [...answers];
+                  if (isMulti) {
+                    const arr = Array.isArray(currentAns) ? [...currentAns] : [];
+                    if (arr.includes(opt)) {
+                      const filtered = arr.filter((x) => x !== opt);
+                      n[i] = filtered.length > 0 ? filtered : null;
+                    } else {
+                      arr.push(opt);
+                      n[i] = arr;
+                    }
                   } else {
-                    arr.push(opt);
-                    n[i] = arr;
+                    n[i] = opt;
                   }
-                } else {
-                  n[i] = opt;
-                }
-                setAnswers(n);
-              };
+                  setAnswers(n);
+                };
 
-              return (
-                <button key={opt} className="glow-tap" onClick={handleClick}
-                  style={{ padding: "8px 14px", borderRadius: 999, fontSize: 12, fontWeight: 500, background: sel ? C.teal : C.tint, color: sel ? "#fff" : C.body, transition: "all 0.15s" }}>{opt}</button>
-              );
-            })}
+                return (
+                  <button key={opt} className="glow-tap" onClick={handleClick}
+                    style={{ padding: "8px 14px", borderRadius: 999, fontSize: 12, fontWeight: 500, background: sel ? C.teal : C.tint, color: sel ? "#fff" : C.body, transition: "all 0.15s" }}>{opt}</button>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -831,6 +863,38 @@ function AnalyzeTab() {
           <AlertTriangle size={24} color={C.coral} style={{ margin: "0 auto 8px" }} />
           <div style={{ fontSize: 13, color: C.body, marginBottom: 10 }}>Analysis failed: {err}</div>
           <button className="glow-tap" onClick={analyze} style={{ padding: "8px 16px", borderRadius: 10, background: C.teal, color: "#fff", fontSize: 12, fontWeight: 600 }}>Retry</button>
+        </div>
+      )}
+
+      {!ready && (
+        <div className="glow-fadein" style={{ background: "rgba(239, 68, 68, 0.02)", borderRadius: 12, padding: 12, marginBottom: 16, border: `1px dashed rgba(239, 68, 68, 0.2)` }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: C.coral, marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
+            <AlertCircle size={14} color={C.coral} /> Remaining steps:
+          </div>
+          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: C.body, display: "flex", flexDirection: "column", gap: 4 }}>
+            {analysisType === "skin" ? (
+              <>
+                {!skinImg && <li>Upload or capture a Skin Photo</li>}
+                {skinAns.map((ans, idx) => {
+                  const isAnswered = ans !== null && (!Array.isArray(ans) || ans.length > 0);
+                  if (!isAnswered) {
+                    return <li key={idx}>Answer question {idx + 1}: "{skinQs[idx].q}"</li>;
+                  }
+                  return null;
+                })}
+              </>
+            ) : (
+              <>
+                {!hairImg && <li>Upload or capture a Scalp / Hair Photo</li>}
+                {hairAns.map((ans, idx) => {
+                  if (ans === null) {
+                    return <li key={idx}>Answer question {idx + 1}: "{hairQs[idx].q}"</li>;
+                  }
+                  return null;
+                })}
+              </>
+            )}
+          </ul>
         </div>
       )}
 
