@@ -276,21 +276,26 @@ function HomeTab() {
 
       <div style={{ ...label, marginBottom: 10, padding: "0 4px" }}>Today's insights</div>
       <div className="glow-scroll-x" style={{ display: "flex", gap: 12, marginBottom: 20, marginLeft: -20, paddingLeft: 20, paddingRight: 20 }}>
-        {sa ? sa.insights.map((ins, i) => {
-          const Ic = iconMap[ins.icon] || Droplets;
-          return (
-            <div key={i} className="glow-fadeup" style={{ ...card, padding: 16, minWidth: 150, animationDelay: `${i * 60}ms` }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
-                <Ic size={18} color={C.body} />
-                <span style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor[ins.colorDot] || C.teal }} />
+        {sa && Array.isArray(sa.insights) ? (
+          sa.insights.map((ins, i) => {
+            const Ic = iconMap[ins.icon] || Droplets;
+            return (
+              <div key={i} className="glow-fadeup" style={{ ...card, padding: 16, minWidth: 150, animationDelay: `${i * 60}ms` }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+                  <Ic size={18} color={C.body} />
+                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor[ins.colorDot] || C.teal }} />
+                </div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: C.dark }}>{ins.value}</div>
+                <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{ins.title}</div>
               </div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: C.dark }}>{ins.value}</div>
-              <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{ins.title}</div>
-            </div>
-          );
-        }) : [0, 1, 2].map((i) => (
-          <div key={i} className="glow-shimmer" style={{ minWidth: 150, height: 90, borderRadius: 16 }} />
-        ))}
+            );
+          })
+        ) : (
+          <div style={{ ...card, padding: 16, width: "100%", textAlign: "center", border: `1px dashed ${C.border}`, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+            <Lightbulb size={20} color={C.teal} />
+            <span style={{ fontSize: 12, color: C.muted }}>Daily health insights will appear here once you complete a scan.</span>
+          </div>
+        )}
       </div>
 
       <div className="glow-fadeup" style={{ background: C.tealTint, borderLeft: `3px solid ${C.teal}`, borderRadius: 12, padding: 16, marginBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
