@@ -7,13 +7,13 @@ import {
   GlassWater, Minus,
 } from "lucide-react";
 
-const GROK_API_KEY = "YOUR_GROK_API_KEY";
-const GROK_URL = "https://api.x.ai/v1/chat/completions";
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || "YOUR_GEMINI_API_KEY";
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${GEMINI_API_KEY}`;
 
 const C = {
   bg: "#F7F7F5", surface: "#FFFFFF", tint: "#F0EFEB",
   teal: "#1A9E8F", amber: "#D4860B", coral: "#D95F5F", green: "#2BAD6A",
-  muted: "#9A9A9A", body: "#3A3A3A", dark: "#1A1A1A",
+  muted: "#9A9A9A", body: "#111111", dark: "#000000",
   border: "rgba(0,0,0,0.07)", tealTint: "#E6F5F3", amberTint: "#FBF2E0",
   coralTint: "#FBE7E7", greenTint: "#E3F5EB",
 };
@@ -47,9 +47,9 @@ const label = {
 
 const styles = `
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-.glow-root, .glow-root * { font-family: 'Inter', system-ui, sans-serif; box-sizing: border-box; }
-.glow-root button { font-family: inherit; cursor: pointer; border: none; background: none; }
-.glow-root input { font-family: inherit; }
+.glow-root, .glow-root * { font-family: 'Inter', system-ui, sans-serif; box-sizing: border-box; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-shadow: none !important; }
+.glow-root button { font-family: inherit; cursor: pointer; border: none; background: none; outline: none; -webkit-appearance: none; appearance: none; }
+.glow-root input { font-family: inherit; outline: none; -webkit-appearance: none; appearance: none; }
 .glow-root h1, .glow-root h2, .glow-root h3 { letter-spacing: -0.02em; font-weight: 700; margin: 0; color: ${C.dark}; }
 .glow-root p { margin: 0; color: ${C.body}; line-height: 1.6; }
 .glow-tap:active { transform: scale(0.97); transition: transform 0.1s; }
@@ -85,22 +85,51 @@ const fileToBase64 = (file) => new Promise((res, rej) => {
 
 // ---------- Provider ----------
 function AppProvider({ children }) {
-  const [data, setData] = useState(() => {
-    if (typeof window === "undefined") return emptyData;
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? { ...emptyData, ...JSON.parse(raw) } : emptyData;
-    } catch { return emptyData; }
-  });
+  const [data, setData] = useState(emptyData);
   const [tab, setTab] = useState("home");
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch {}
-  }, [data]);
+    setIsMounted(true);
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        setData((d) => ({
+          ...emptyData,
+          ...parsed,
+          user: { ...emptyData.user, ...parsed?.user },
+          analysisResults: { ...emptyData.analysisResults, ...parsed?.analysisResults },
+          reports: { ...emptyData.reports, ...parsed?.reports },
+          dailyLog: { ...emptyData.dailyLog, ...parsed?.dailyLog },
+        }));
+      }
+    } catch (e) {
+      console.error("Failed to load state from localStorage:", e);
+    }
+  }, []);
 
-  const update = (fn) => setData((d) => { const next = structuredClone(d); fn(next); return next; });
+  useEffect(() => {
+    if (!isMounted) return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (e) {
+      console.error("Failed to save state to localStorage:", e);
+    }
+  }, [data, isMounted]);
 
-  const reset = () => { localStorage.removeItem(STORAGE_KEY); setData(emptyData); };
+  const update = (fn) => setData((d) => {
+    const next = structuredClone(d);
+    fn(next);
+    return next;
+  });
+
+  const reset = () => {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {}
+    setData(emptyData);
+  };
 
   const pushActivity = (icon, text) => update((d) => {
     d.activity.unshift({ icon, text, time: new Date().toISOString() });
@@ -198,12 +227,12 @@ const dotColor = { teal: C.teal, amber: C.amber, coral: C.coral, green: C.green 
 
 function HomeTab() {
   const { data, setTab } = useApp();
-  const sa = data.analysisResults.skinAnalysis;
+  const sa = data.analysisResults.skinAnalysis || data.analysisResults.hairAnalysis;
   const greeting = (() => {
     const h = new Date().getHours();
     if (h < 12) return "Good morning"; if (h < 18) return "Good afternoon"; return "Good evening";
   })();
-  const initials = data.user.name.split(" ").map((s) => s[0]).join("").slice(0, 2).toUpperCase();
+  const initials = (data.user?.name || "").split(" ").map((s) => s[0] || "").join("").slice(0, 2).toUpperCase();
 
   return (
     <div style={{ padding: "24px 20px 100px" }}>
@@ -299,7 +328,7 @@ const skinQs = [
   { q: "How often do you experience breakouts?", a: ["Rarely", "Sometimes", "Often", "Always"] },
   { q: "Do you notice redness or irritation?", a: ["Never", "Occasionally", "Frequently"] },
   { q: "How would you describe your skin texture?", a: ["Smooth", "Rough", "Uneven", "Bumpy"] },
-  { q: "What is your primary skin concern?", a: ["Acne", "Dryness", "Dark Spots", "Aging", "Dullness"] },
+  { q: "What is your primary skin concern? (Select one or more)", a: ["Acne", "Dryness", "Dark Spots", "Aging", "Dullness"], multiSelect: true },
 ];
 const hairQs = [
   { q: "How does your scalp feel?", a: ["Oily", "Dry", "Balanced", "Itchy"] },
@@ -309,23 +338,125 @@ const hairQs = [
   { q: "What is your primary hair concern?", a: ["Hair fall", "Dandruff", "Dryness", "Oiliness", "Frizz"] },
 ];
 
-function UploadZone({ icon: Icon, title, image, onPick }) {
-  const ref = useRef(null);
+function UploadZone({ icon: Icon, title, image, onPick, onClear }) {
+  const fileInputRef = useRef(null);
+  const videoRef = useRef(null);
+  const [stream, setStream] = useState(null);
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState(null);
+
+  // Clean up stream on unmount
+  useEffect(() => {
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, [stream]);
+
+  const startCamera = async (e) => {
+    e.stopPropagation(); // Avoid triggering file pick
+    setCameraError(null);
+    setIsCameraActive(true);
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }
+      });
+      setStream(s);
+      if (videoRef.current) {
+        videoRef.current.srcObject = s;
+      }
+    } catch (err) {
+      console.error("Camera access failed:", err);
+      setCameraError("Camera access denied or unavailable.");
+      setIsCameraActive(false);
+    }
+  };
+
+  const stopCamera = (e) => {
+    if (e) e.stopPropagation();
+    if (stream) {
+      stream.getTracks().forEach((track) => track.stop());
+      setStream(null);
+    }
+    setIsCameraActive(false);
+  };
+
+  const capturePhoto = (e) => {
+    e.stopPropagation();
+    if (videoRef.current && stream) {
+      const canvas = document.createElement("canvas");
+      canvas.width = videoRef.current.videoWidth || 640;
+      canvas.height = videoRef.current.videoHeight || 480;
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
+        onPick(dataUrl); // Passes base64 string directly
+      }
+      stopCamera();
+    }
+  };
+
   return (
-    <div>
-      <div style={{ ...label, marginBottom: 8 }}>{title}</div>
-      <input ref={ref} type="file" accept="image/*" hidden onChange={(e) => e.target.files?.[0] && onPick(e.target.files[0])} />
-      <button className="glow-upload glow-tap" onClick={() => ref.current?.click()}
-        style={{ width: "100%", height: 140, borderRadius: 16, border: `2px dashed ${C.teal}`, background: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, overflow: "hidden", position: "relative" }}>
-        {image ? (
-          <img src={image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-        ) : (
-          <>
-            <Icon size={28} color={C.teal} />
-            <span style={{ fontSize: 12, color: C.body, fontWeight: 500 }}>Tap to upload</span>
-          </>
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ ...label, marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span>{title}</span>
+        {image && (
+          <button onClick={(e) => { e.stopPropagation(); onClear(); }} style={{ fontSize: 11, color: C.coral, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+            <X size={12} /> Clear
+          </button>
         )}
-      </button>
+      </div>
+
+      <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={(e) => {
+        const file = e.target.files?.[0];
+        if (file) {
+          const r = new FileReader();
+          r.onload = () => onPick(r.result);
+          r.readAsDataURL(file);
+        }
+      }} />
+
+      {isCameraActive ? (
+        <div style={{ width: "100%", height: 220, borderRadius: 16, border: `2px solid ${C.teal}`, background: "#000", overflow: "hidden", position: "relative", display: "flex", flexDirection: "column" }}>
+          <video ref={videoRef} autoPlay playsInline muted style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          <div style={{ position: "absolute", bottom: 12, left: 0, right: 0, display: "flex", justifyContent: "center", gap: 10, zIndex: 10 }}>
+            <button onClick={capturePhoto} style={{ padding: "8px 16px", borderRadius: 20, background: C.teal, color: "#fff", fontSize: 12, fontWeight: 600, boxShadow: "0 2px 8px rgba(0,0,0,0.2)" }}>
+              Capture
+            </button>
+            <button onClick={stopCamera} style={{ padding: "8px 16px", borderRadius: 20, background: "#fff", color: C.dark, fontSize: 12, fontWeight: 600, boxShadow: "0 2px 8px rgba(0,0,0,0.2)" }}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <button className="glow-upload glow-tap" onClick={() => fileInputRef.current?.click()}
+            style={{ width: "100%", height: 140, borderRadius: 16, border: `2px dashed ${C.teal}`, background: "#fff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, overflow: "hidden", position: "relative" }}>
+            {image ? (
+              <img src={image} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            ) : (
+              <>
+                <Icon size={28} color={C.teal} />
+                <span style={{ fontSize: 12, color: C.body, fontWeight: 500 }}>Tap to upload photo</span>
+              </>
+            )}
+          </button>
+
+          {!image && (
+            <button onClick={startCamera} style={{ width: "100%", padding: "10px 14px", borderRadius: 12, border: `1px solid ${C.teal}`, background: C.tealTint, color: C.teal, fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 0.2s" }}>
+              <Camera size={14} /> Open Live Camera
+            </button>
+          )}
+
+          {cameraError && (
+            <div style={{ fontSize: 11, color: C.coral, fontWeight: 500, marginTop: 2, textAlign: "center" }}>
+              {cameraError}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -338,9 +469,31 @@ function QuestionBlock({ qs, answers, setAnswers }) {
           <div style={{ fontSize: 13, fontWeight: 600, color: C.dark, marginBottom: 10 }}>{qq.q}</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             {qq.a.map((opt) => {
-              const sel = answers[i] === opt;
+              const isMulti = qq.multiSelect;
+              const currentAns = answers[i];
+              const sel = isMulti 
+                ? Array.isArray(currentAns) && currentAns.includes(opt)
+                : currentAns === opt;
+
+              const handleClick = () => {
+                const n = [...answers];
+                if (isMulti) {
+                  const arr = Array.isArray(currentAns) ? [...currentAns] : [];
+                  if (arr.includes(opt)) {
+                    const filtered = arr.filter((x) => x !== opt);
+                    n[i] = filtered.length > 0 ? filtered : null;
+                  } else {
+                    arr.push(opt);
+                    n[i] = arr;
+                  }
+                } else {
+                  n[i] = opt;
+                }
+                setAnswers(n);
+              };
+
               return (
-                <button key={opt} className="glow-tap" onClick={() => { const n = [...answers]; n[i] = opt; setAnswers(n); }}
+                <button key={opt} className="glow-tap" onClick={handleClick}
                   style={{ padding: "8px 14px", borderRadius: 999, fontSize: 12, fontWeight: 500, background: sel ? C.teal : C.tint, color: sel ? "#fff" : C.body, transition: "all 0.15s" }}>{opt}</button>
               );
             })}
@@ -370,29 +523,57 @@ function TagInput({ tags, setTags, placeholder }) {
   );
 }
 
-async function callGrok(systemPrompt, userText, images = []) {
-  const content = [{ type: "text", text: userText }];
-  for (const img of images) content.push({ type: "image_url", image_url: { url: img } });
-  const res = await fetch(GROK_URL, {
+async function callGemini(systemPrompt, userText, images = []) {
+  const parts = [{ text: userText }];
+
+  for (const img of images) {
+    if (img.startsWith("data:")) {
+      const match = img.match(/^data:([^;]+);base64,(.+)$/);
+      if (match) {
+        parts.push({
+          inlineData: {
+            mimeType: match[1],
+            data: match[2],
+          },
+        });
+      }
+    }
+  }
+
+  const res = await fetch(GEMINI_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${GROK_API_KEY}` },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "grok-2-vision-1212",
-      messages: [{ role: "system", content: systemPrompt }, { role: "user", content }],
-      temperature: 0.4,
+      contents: [{ parts }],
+      systemInstruction: {
+        parts: [{ text: systemPrompt }],
+      },
+      generationConfig: {
+        responseMimeType: "application/json",
+        temperature: 0.4,
+      },
     }),
   });
-  if (!res.ok) throw new Error(`API ${res.status}`);
+
+  if (!res.ok) {
+    let errMsg = `Status ${res.status}`;
+    try {
+      const errJson = await res.json();
+      errMsg = errJson.error?.message || JSON.stringify(errJson);
+    } catch {}
+    throw new Error(`Gemini API Error: ${errMsg}`);
+  }
+  
   const j = await res.json();
-  const txt = j.choices?.[0]?.message?.content || "";
-  const m = txt.match(/\{[\s\S]*\}/);
-  return JSON.parse(m ? m[0] : txt);
+  const txt = j.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  return JSON.parse(txt);
 }
 
-const ANALYSIS_SYSTEM = "You are Glowtics, an expert AI skin, hair and nutrition health coach. Analyze the uploaded skin or hair photo along with the user's diagnostic answers and lifestyle data. Respond ONLY with a valid JSON object, no markdown, no preamble, no explanation. JSON keys required: glowScore (number 0-100), skinScore (number 0-100), hairScore (number 0-100), nutritionScore (number 0-100), dailySummary (string, one sentence), rootCause (string), routineReminder (string), insights (array of 3 objects each with: icon (one of: droplets, zap, moon, wind, thermometer), title (string), value (string), colorDot (one of: teal, amber, coral, green)), skinAdvice (object: headline string, explanation string), nutritionAdvice (object: headline string, explanation string), lifestyleAdvice (object: headline string, explanation string), topIngredients (array of 3 strings), avoidIngredients (array of 3 strings), dailyTip (string), triggers (array of objects each with: label string, percentage number), nutrientDeficiencies (object with keys: vitaminC, zinc, omega3, iron, biotin — each a number 0-100 representing current level vs ideal), nutritionPlan (object: vitaminC object with current number and target number, same for vitaminD, biotin, zinc, omega3), recommendedFoods (array of 7 objects each with: name string, benefit string)).";
+const ANALYSIS_SYSTEM = "You are Glowtics, an expert AI skin, hair and nutrition health coach. First, validate if the uploaded photo is indeed a valid close-up or clear shot of a human face, skin area, scalp, or hair. If the photo is invalid (e.g. an animal, landscape, random object, extremely blurry, or not human skin/hair), respond ONLY with a JSON object where \"isValidImage\" is false, and \"invalidImageError\" is a helpful string explaining what is wrong (e.g. \"The uploaded photo does not appear to be a human face or scalp. Please upload or capture a clear, close-up photo.\"), and all other keys can be null or empty. If the photo is valid, analyze the photo along with the diagnostic answers and lifestyle data. Respond ONLY with a valid JSON object, no markdown, no preamble, no explanation. JSON keys required: isValidImage (boolean, set to true), invalidImageError (string, set to null), glowScore (number 0-100), skinScore (number 0-100), hairScore (number 0-100), nutritionScore (number 0-100), dailySummary (string, one sentence), rootCause (string), routineReminder (string), insights (array of 3 objects each with: icon (one of: droplets, zap, moon, wind, thermometer), title (string), value (string), colorDot (one of: teal, amber, coral, green)), skinAdvice (object: headline string, explanation string), nutritionAdvice (object: headline string, explanation string), lifestyleAdvice (object: headline string, explanation string), topIngredients (array of 3 strings), avoidIngredients (array of 3 strings), dailyTip (string), triggers (array of objects each with: label string, percentage number), nutrientDeficiencies (object with keys: vitaminC, zinc, omega3, iron, biotin — each a number 0-100 representing current level vs ideal), nutritionPlan (object: vitaminC object with current number and target number, same for vitaminD, biotin, zinc, omega3), recommendedFoods (array of 7 objects each with: name string, benefit string)).";
 
 function AnalyzeTab() {
   const { data, update, pushActivity, setTab } = useApp();
+  const [analysisType, setAnalysisType] = useState("skin"); // "skin" or "hair"
   const [skinImg, setSkinImg] = useState(null);
   const [hairImg, setHairImg] = useState(null);
   const [skinAns, setSkinAns] = useState(Array(5).fill(null));
@@ -400,39 +581,66 @@ function AnalyzeTab() {
   const [sleep, setSleep] = useState(data.dailyLog.sleep);
   const [stress, setStress] = useState(data.dailyLog.stress);
   const [water, setWater] = useState(data.dailyLog.water);
-  const [food, setFood] = useState([]);
-  const [products, setProducts] = useState([]);
+  const [skincareProducts, setSkincareProducts] = useState({
+    facewash: { used: null, brand: "" },
+    serum: { used: null, brand: "" },
+    moisturizer: { used: null, brand: "" },
+  });
+  const [hairProducts, setHairProducts] = useState({
+    shampoo: { used: null, brand: "" },
+    conditioner: { used: null, brand: "" },
+    oil: { used: null, brand: "" },
+  });
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState(null);
   const [result, setResult] = useState(null);
 
-  const skinDone = skinImg && skinAns.every(Boolean);
+  const skinDone = skinImg && skinAns.every((val) => val !== null && (!Array.isArray(val) || val.length > 0));
   const hairDone = hairImg && hairAns.every(Boolean);
-  const ready = skinDone || hairDone;
+  const ready = analysisType === "skin" ? skinDone : hairDone;
 
-  const handlePick = async (which, file) => {
-    const b64 = await fileToBase64(file);
+  const handlePick = (which, b64) => {
     if (which === "skin") setSkinImg(b64); else setHairImg(b64);
   };
 
   const analyze = async () => {
     setLoading(true); setErr(null);
     try {
-      const userText = `User diagnostic data:\nSkin answers: ${JSON.stringify(skinAns)}\nHair answers: ${JSON.stringify(hairAns)}\nSleep: ${sleep}h, Stress: ${stress}/5, Water: ${water} glasses\nFood today: ${food.join(", ")}\nProducts: ${products.join(", ")}\nReturn the required JSON only.`;
-      const images = [skinImg, hairImg].filter(Boolean);
-      const json = await callGrok(ANALYSIS_SYSTEM, userText, images);
+      const targetImg = analysisType === "skin" ? skinImg : hairImg;
+      const targetAns = analysisType === "skin" ? skinAns : hairAns;
+      
+      const activeProducts = [];
+      if (analysisType === "skin") {
+        if (skincareProducts.facewash.used) activeProducts.push(`Face Wash (Brand: ${skincareProducts.facewash.brand || "Not specified"})`);
+        if (skincareProducts.serum.used) activeProducts.push(`Serum (Brand: ${skincareProducts.serum.brand || "Not specified"})`);
+        if (skincareProducts.moisturizer.used) activeProducts.push(`Moisturizer (Brand: ${skincareProducts.moisturizer.brand || "Not specified"})`);
+      } else {
+        if (hairProducts.shampoo.used) activeProducts.push(`Shampoo (Brand: ${hairProducts.shampoo.brand || "Not specified"})`);
+        if (hairProducts.conditioner.used) activeProducts.push(`Conditioner (Brand: ${hairProducts.conditioner.brand || "Not specified"})`);
+        if (hairProducts.oil.used) activeProducts.push(`Hair Oil/Serum (Brand: ${hairProducts.oil.brand || "Not specified"})`);
+      }
+
+      const userText = `Analysis Target: ${analysisType.toUpperCase()}\nUser diagnostic answers: ${JSON.stringify(targetAns)}\nSleep: ${sleep}h, Stress: ${stress}/5, Water: ${water} glasses\nSkincare/Haircare products: ${activeProducts.join(", ") || "None"}\nReturn the required JSON only.`;
+      const images = [targetImg].filter(Boolean);
+      const json = await callGemini(ANALYSIS_SYSTEM, userText, images);
+      
+      // Enforce image content validation checks
+      if (json.isValidImage === false) {
+        throw new Error(json.invalidImageError || "The uploaded image does not appear to be a human face or scalp. Please capture a clear, close-up photo.");
+      }
+
       const now = new Date().toISOString();
       update((d) => {
-        if (skinDone) d.analysisResults.skinAnalysis = json;
-        if (hairDone) d.analysisResults.hairAnalysis = json;
+        if (analysisType === "skin") d.analysisResults.skinAnalysis = json;
+        else d.analysisResults.hairAnalysis = json;
         d.analysisResults.lastAnalyzedAt = now;
         d.reports.glowScoreHistory.push({ score: json.glowScore, at: now });
-        d.dailyLog = { sleep, stress, water, food, productsUsed: products };
+        d.dailyLog = { sleep, stress, water, food: [], productsUsed: activeProducts };
         if (!d.achievements.includes("First Scan")) d.achievements.push("First Scan");
         const today = new Date().toDateString();
         if (!d.logDays.includes(today)) d.logDays.push(today);
       });
-      pushActivity("zap", "Completed AI analysis");
+      pushActivity("zap", `Completed AI ${analysisType} analysis`);
       setResult(json);
     } catch (e) {
       setErr(e.message || "Analysis failed");
@@ -502,15 +710,30 @@ function AnalyzeTab() {
       <h1 style={{ fontSize: 24, marginBottom: 6 }}>Analyze</h1>
       <p style={{ fontSize: 13, color: C.muted, marginBottom: 20 }}>Upload a photo and answer a few questions for personalized AI insights.</p>
 
+      {/* Analysis Type Pill Selector */}
+      <div style={{ display: "flex", background: C.tint, borderRadius: 12, padding: 4, marginBottom: 20 }}>
+        {["skin", "hair"].map((t) => {
+          const active = analysisType === t;
+          return (
+            <button key={t} className="glow-tap" onClick={() => setAnalysisType(t)} style={{ flex: 1, padding: "10px 0", borderRadius: 10, background: active ? C.teal : "transparent", color: active ? "#fff" : C.muted, fontWeight: 600, fontSize: 13, textTransform: "capitalize", transition: "all 0.2s" }}>
+              {t} Care
+            </button>
+          );
+        })}
+      </div>
+
       <div style={{ display: "flex", flexDirection: "column", gap: 20, marginBottom: 20 }}>
-        <div>
-          <UploadZone icon={Camera} title="Skin Photo" image={skinImg} onPick={(f) => handlePick("skin", f)} />
-          {skinImg && <QuestionBlock qs={skinQs} answers={skinAns} setAnswers={setSkinAns} />}
-        </div>
-        <div>
-          <UploadZone icon={Scan} title="Scalp / Hair Photo" image={hairImg} onPick={(f) => handlePick("hair", f)} />
-          {hairImg && <QuestionBlock qs={hairQs} answers={hairAns} setAnswers={setHairAns} />}
-        </div>
+        {analysisType === "skin" ? (
+          <div className="glow-fadein">
+            <UploadZone icon={Camera} title="Skin Photo" image={skinImg} onPick={(b64) => handlePick("skin", b64)} onClear={() => setSkinImg(null)} />
+            {skinImg && <QuestionBlock qs={skinQs} answers={skinAns} setAnswers={setSkinAns} />}
+          </div>
+        ) : (
+          <div className="glow-fadein">
+            <UploadZone icon={Scan} title="Scalp / Hair Photo" image={hairImg} onPick={(b64) => handlePick("hair", b64)} onClear={() => setHairImg(null)} />
+            {hairImg && <QuestionBlock qs={hairQs} answers={hairAns} setAnswers={setHairAns} />}
+          </div>
+        )}
       </div>
 
       <div style={{ ...card, padding: 16, marginBottom: 16 }}>
@@ -551,14 +774,55 @@ function AnalyzeTab() {
           </div>
         </div>
 
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 13, color: C.body, marginBottom: 8 }}>Food log</div>
-          <TagInput tags={food} setTags={setFood} placeholder="Type and press Enter" />
-        </div>
-
-        <div>
-          <div style={{ fontSize: 13, color: C.body, marginBottom: 8 }}>Current products</div>
-          <TagInput tags={products} setTags={setProducts} placeholder="Type and press Enter" />
+        <div style={{ marginTop: 8 }}>
+          <div style={{ ...label, marginBottom: 12 }}>
+            {analysisType === "skin" ? "Skincare Products Used" : "Haircare Products Used"}
+          </div>
+          {(analysisType === "skin"
+            ? [
+                { id: "facewash", label: "Face Wash" },
+                { id: "serum", label: "Serum" },
+                { id: "moisturizer", label: "Moisturizer" },
+              ]
+            : [
+                { id: "shampoo", label: "Shampoo" },
+                { id: "conditioner", label: "Conditioner" },
+                { id: "oil", label: "Hair Oil/Serum" },
+              ]
+          ).map((prod) => {
+            const state = analysisType === "skin" ? skincareProducts[prod.id] : hairProducts[prod.id];
+            const setProducts = analysisType === "skin" ? setSkincareProducts : setHairProducts;
+            return (
+              <div key={prod.id} style={{ marginBottom: 12, background: C.bg, padding: 12, borderRadius: 12, border: `1px solid ${C.border}`, display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: C.dark }}>{prod.label}</span>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    {[
+                      { val: true, text: "Yes" },
+                      { val: false, text: "No" },
+                    ].map((btn) => {
+                      const sel = state.used === btn.val;
+                      return (
+                        <button key={btn.text} className="glow-tap" onClick={() => setProducts((p) => ({ ...p, [prod.id]: { ...p[prod.id], used: btn.val } }))}
+                          style={{ padding: "4px 12px", borderRadius: 8, fontSize: 11, fontWeight: 600, background: sel ? C.teal : C.tint, color: sel ? "#fff" : C.muted, transition: "all 0.15s" }}>
+                          {btn.text}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                {state.used === true && (
+                  <div className="glow-fadein">
+                    <input value={state.brand} onChange={(e) => {
+                      const v = e.target.value;
+                      setProducts((p) => ({ ...p, [prod.id]: { ...p[prod.id], brand: v } }));
+                    }} placeholder={`What brand do you use?`}
+                      style={{ width: "100%", padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, background: C.surface, outline: "none", color: C.dark }} />
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -627,7 +891,7 @@ function LineChart({ points }) {
 function ReportsTab() {
   const { data, update } = useApp();
   const [filter, setFilter] = useState("Week");
-  const sa = data.analysisResults.skinAnalysis;
+  const sa = data.analysisResults.skinAnalysis || data.analysisResults.hairAnalysis;
   const history = data.reports.glowScoreHistory.map((h) => h.score);
   const [newProd, setNewProd] = useState("");
   const [newCat, setNewCat] = useState("");
@@ -749,7 +1013,7 @@ function RadarChart({ values }) {
 
 function NutritionTab() {
   const { data, update, pushActivity } = useApp();
-  const sa = data.analysisResults.skinAnalysis;
+  const sa = data.analysisResults.skinAnalysis || data.analysisResults.hairAnalysis;
   const [expanded, setExpanded] = useState(null);
   const [insightLoading, setInsightLoading] = useState(false);
   const [addingFor, setAddingFor] = useState(null);
@@ -787,7 +1051,7 @@ function NutritionTab() {
     try {
       const sys = "You are Glowtics nutrition AI. Analyze the user's meal log and respond ONLY with valid JSON. Keys: macroBreakdown (object: protein number 0-100, carbs number 0-100, fats number 0-100), nutritionFeedback (string, one sentence), suggestions (array of 3 strings).";
       const txt = `Meal log: ${JSON.stringify(data.nutritionLog)}`;
-      const json = await callGrok(sys, txt);
+      const json = await callGemini(sys, txt);
       update((d) => { d.nutritionInsights = json; });
     } catch (e) { console.error(e); }
     finally { setInsightLoading(false); }
@@ -927,10 +1191,10 @@ function Sparkline({ data }) {
 function ProfileTab() {
   const { data, update, reset, setTab } = useApp();
   const [edit, setEdit] = useState(false);
-  const [nm, setNm] = useState(data.user.name);
+  const [nm, setNm] = useState(data.user?.name || "");
   const [newProd, setNewProd] = useState("");
-  const sa = data.analysisResults.skinAnalysis;
-  const initials = data.user.name.split(" ").map((s) => s[0]).join("").slice(0, 2).toUpperCase();
+  const sa = data.analysisResults.skinAnalysis || data.analysisResults.hairAnalysis;
+  const initials = (data.user?.name || "").split(" ").map((s) => s[0] || "").join("").slice(0, 2).toUpperCase();
   const history = data.reports.glowScoreHistory.map((h) => h.score);
   const padded = [...Array(Math.max(0, 7 - history.length)).fill(null), ...history].slice(-7);
 
